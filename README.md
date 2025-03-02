@@ -6,7 +6,7 @@
 AXI接口数据交互使用的是valid&ready握手机制，理解握手是使用AXI的第一步。 - [跳转到 S01E02](./S01E02/README.md)
 
 ## 注：
-1. 通过`https://github.com/RongyeL/EasyAXI.git --depth 1`获取本系列视频的项目文件;
+1. 通过`git clone https://github.com/RongyeL/EasyAXI.git --depth 1`获取本系列视频的项目文件;
 2. 在编译或仿真前，需要在`EasyAXI/S01EXX`路径下，执行`source script/project.sh`，通过该脚本确定当期项目的根路径；
 3. 关于开发软件：很抱歉，vcs+verdi的环境需要自行安装，本教学视频不会说明或提供。
 
