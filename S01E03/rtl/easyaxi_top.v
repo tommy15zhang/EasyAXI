@@ -5,7 +5,7 @@
 // Filename      : easyaxi.v
 // Author        : Rongye
 // Created On    : 2025-02-05 05:04
-// Last Modified : 2025-03-13 10:09
+// Last Modified : 2025-03-15 08:42
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -27,7 +27,11 @@ wire  [`AXI_LEN_W   -1:0]   axi_mst_arlen;
 wire  [`AXI_SIZE_W  -1:0]   axi_mst_arsize;
 wire  [`AXI_BURST_W -1:0]   axi_mst_arburst;
 
+wire                        axi_mst_rvalid;
 wire                        axi_mst_rready;
+wire  [`AXI_DATA_W  -1:0]   axi_mst_rdata;
+wire  [`AXI_RESP_W  -1:0]   axi_mst_rresp;
+wire                        axi_mst_rlast;
 EASYAXI_MST U_EASYAXI_MST (
     .clk             (clk             ), // i
     .rst_n           (rst_n           ), // i
@@ -40,7 +44,11 @@ EASYAXI_MST U_EASYAXI_MST (
     .axi_mst_arsize  (axi_mst_arsize  ), // o
     .axi_mst_arburst (axi_mst_arburst ), // o
 
-    .axi_mst_rready  (axi_mst_rready  )  // o
+    .axi_mst_rvalid  (axi_mst_rvalid  ), // i
+    .axi_mst_rready  (axi_mst_rready  ), // o
+    .axi_mst_rdata   (axi_mst_rdata   ), // i
+    .axi_mst_rresp   (axi_mst_rresp   ), // i
+    .axi_mst_rlast   (axi_mst_rlast   )  // i
 );
 //--------------------------------------------------------------------------------
 // Inst Slave
@@ -88,6 +96,10 @@ assign axi_slv_arlen   = axi_mst_arlen;
 assign axi_slv_arsize  = axi_mst_arsize;
 assign axi_slv_arburst = axi_mst_arburst;
 
+assign axi_mst_rvalid = axi_slv_rvalid;
 assign axi_slv_rready = axi_mst_rready;
+assign axi_mst_rdata  = axi_slv_rdata;
+assign axi_mst_rresp  = axi_slv_rresp;
+assign axi_mst_rlast  = axi_slv_rlast;
 
 endmodule
