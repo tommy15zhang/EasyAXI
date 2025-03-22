@@ -5,7 +5,7 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-03-15 20:21
+// Last Modified : 2025-03-20 00:24
 // ---------------------------------------------------------------------------------
 // Description   : When the enable signal is valid, it triggers the valid signal to be set.  
 //
@@ -110,16 +110,16 @@ end
 //--------------------------------------------------------------------------------
 always @(posedge clk or negedge rst_n) begin
     if (~rst_n) begin
-        rd_id_buff_r   <= #DLY {`AXI_ID_W{1'b0}};
-        rd_addr_buff_r <= #DLY {`AXI_ADDR_W{1'b0}};
-        rd_len_buff_r   <= #DLY `AXI_LEN_W'h0;
+        rd_id_buff_r    <= #DLY {`AXI_ID_W{1'b0}};
+        rd_addr_buff_r  <= #DLY {`AXI_ADDR_W{1'b0}};
+        rd_len_buff_r   <= #DLY {`AXI_LEN_W{1'b0}};
         rd_size_buff_r  <= #DLY `AXI_SIZE_4B;
         rd_burst_buff_r <= #DLY `AXI_BURST_INCR;
     end
     else if (rd_req_en) begin
         rd_id_buff_r   <= #DLY rd_id_buff_r + `AXI_ID_W'h1;  // Increment ID
         rd_addr_buff_r <= #DLY ((rd_id_buff_r + `AXI_ID_W'h1) < `AXI_ID_W'hA) ? `AXI_ADDR_W'h0 : `AXI_ADDR_W'h1;  // Address toggle logic
-        rd_len_buff_r   <= #DLY rd_len_buff_r + `AXI_LEN_W'h1;  // Increment length
+        rd_len_buff_r  <= #DLY rd_len_buff_r + `AXI_LEN_W'h1;  // Increment length
     end
 end
 

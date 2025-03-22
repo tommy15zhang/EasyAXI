@@ -5,7 +5,7 @@
 // Filename      : easyaxi_slv.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:52
-// Last Modified : 2025-03-15 20:30
+// Last Modified : 2025-03-20 00:49
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -121,7 +121,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_size_buff_r  <= #DLY {`AXI_SIZE_W{1'b0}};
         rd_burst_buff_r <= #DLY {`AXI_BURST_W{1'b0}};
     end
-    else if (axi_slv_arvalid & axi_slv_arready) begin
+    else if (rd_buff_set) begin
         rd_id_buff_r    <= #DLY axi_slv_arid;    // Capture AXI ID
         rd_addr_buff_r  <= #DLY axi_slv_araddr;  // Capture AXI Address
         rd_len_buff_r   <= #DLY axi_slv_arlen;   // Capture AXI Length
@@ -157,7 +157,7 @@ always @(posedge clk or negedge rst_n) begin
         clr_cnt_r <= #DLY {CLR_CNT_W{1'b0}};
     end
     else if (rd_req_en & ~rd_dec_miss) begin
-        clr_cnt_r <= #DLY clr_cnt_r + 1;  // Increment counter on valid request
+        clr_cnt_r <= #DLY `AXI_LEN_W'h1;  // Increment counter on valid request
     end
     else if (rd_result_en) begin
         clr_cnt_r <= #DLY (rd_result_index_r == rd_len_buff_r) ? {CLR_CNT_W{1'b0}} : `AXI_LEN_W'h1;  // Reset or increment counter
