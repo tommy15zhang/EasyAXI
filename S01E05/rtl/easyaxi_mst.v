@@ -5,7 +5,7 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-05-17 07:39
+// Last Modified : 2025-05-17 08:47
 // ---------------------------------------------------------------------------------
 // Description   : AXI Master with burst support up to length 8 and outstanding capability
 //
@@ -22,17 +22,17 @@ module EASYAXI_MST #(
 // AXI AR Channel
     output wire                      axi_mst_arvalid,
     input  wire                      axi_mst_arready,
-    output wire  [`AXI_ID_W-1:0]     axi_mst_arid,
-    output wire  [`AXI_ADDR_W-1:0]   axi_mst_araddr,
-    output wire  [`AXI_LEN_W-1:0]    axi_mst_arlen,
-    output wire  [`AXI_SIZE_W-1:0]   axi_mst_arsize,
-    output wire  [`AXI_BURST_W-1:0]  axi_mst_arburst,
+    output wire  [`AXI_ID_W    -1:0] axi_mst_arid,
+    output wire  [`AXI_ADDR_W  -1:0] axi_mst_araddr,
+    output wire  [`AXI_LEN_W   -1:0] axi_mst_arlen,
+    output wire  [`AXI_SIZE_W  -1:0] axi_mst_arsize,
+    output wire  [`AXI_BURST_W -1:0] axi_mst_arburst,
 
     input  wire                      axi_mst_rvalid,
     output wire                      axi_mst_rready,
-    input  wire  [`AXI_ID_W  -1:0]   axi_mst_rid,
-    input  wire  [`AXI_DATA_W-1:0]   axi_mst_rdata,
-    input  wire  [`AXI_RESP_W-1:0]   axi_mst_rresp,
+    input  wire  [`AXI_ID_W    -1:0] axi_mst_rid,
+    input  wire  [`AXI_DATA_W  -1:0] axi_mst_rdata,
+    input  wire  [`AXI_RESP_W  -1:0] axi_mst_rresp,
     input  wire                      axi_mst_rlast
 );
 
@@ -44,37 +44,38 @@ localparam OST_CNT_W     = $clog2(OST_DEPTH);      // Outstanding counter width
 //--------------------------------------------------------------------------------
 // Inner Signal
 //--------------------------------------------------------------------------------
-wire                     rd_buff_set;
-wire                     rd_buff_clr;
-wire                     rd_buff_full;
+wire                                  rd_buff_set;
+wire                                  rd_buff_clr;
+wire                                  rd_buff_full;
 
 // Outstanding request tracking
-reg  [OST_DEPTH-1:0]     rd_valid_buff_r;
-reg  [OST_DEPTH-1:0]     rd_req_buff_r;
-reg  [OST_DEPTH-1:0]     rd_comp_buff_r;
+reg                                   rd_valid_buff_r[OST_DEPTH-1:0];
+reg                                   rd_req_buff_r  [OST_DEPTH-1:0];
+reg                                   rd_comp_buff_r [OST_DEPTH-1:0];
 
+reg  [OST_DEPTH-1:0]                  rd_valid_bits;        
 // Outstanding payload buffers
-reg  [`AXI_ID_W-1:0]     rd_id_buff_r    [OST_DEPTH-1:0];
-reg  [`AXI_ADDR_W-1:0]   rd_addr_buff_r  [OST_DEPTH-1:0];
-reg  [`AXI_LEN_W-1:0]    rd_len_buff_r   [OST_DEPTH-1:0];
-reg  [`AXI_SIZE_W-1:0]   rd_size_buff_r  [OST_DEPTH-1:0];
-reg  [`AXI_BURST_W-1:0]  rd_burst_buff_r [OST_DEPTH-1:0];
+reg  [`AXI_ID_W                 -1:0] rd_id_buff_r   [OST_DEPTH-1:0];
+reg  [`AXI_ADDR_W               -1:0] rd_addr_buff_r [OST_DEPTH-1:0];
+reg  [`AXI_LEN_W                -1:0] rd_len_buff_r  [OST_DEPTH-1:0];
+reg  [`AXI_SIZE_W               -1:0] rd_size_buff_r [OST_DEPTH-1:0];
+reg  [`AXI_BURST_W              -1:0] rd_burst_buff_r[OST_DEPTH-1:0];
     
 // Data buffer now supports up to 8 beats per outstanding request
-reg  [`AXI_DATA_W*MAX_BURST_LEN-1:0]   rd_data_buff_r [OST_DEPTH-1:0]; 
-reg  [BURST_CNT_W-1:0]   rd_data_cnt_r  [OST_DEPTH-1:0];  // Counter for burst data
-reg  [`AXI_RESP_W-1:0]   rd_resp_buff_r [OST_DEPTH-1:0];
-wire [OST_DEPTH-1:0]     rd_resp_err;
+reg  [`AXI_DATA_W*MAX_BURST_LEN -1:0] rd_data_buff_r [OST_DEPTH-1:0];
+reg  [BURST_CNT_W               -1:0] rd_data_cnt_r  [OST_DEPTH-1:0];  // Counter for burst data
+reg  [`AXI_RESP_W               -1:0] rd_resp_buff_r [OST_DEPTH-1:0];
+wire [OST_DEPTH                 -1:0] rd_resp_err;
 
-wire                     rd_req_en;
-wire                     rd_result_en;
-wire [`AXI_ID_W-1:0]     rd_result_id;
-wire                     rd_result_last;
+wire                                  rd_req_en;
+wire                                  rd_result_en;
+wire [`AXI_ID_W                 -1:0] rd_result_id;
+wire                                  rd_result_last;
 
 // Pointer and status signals
-reg  [OST_CNT_W-1:0]     rd_set_ptr_r;    // Pointer for request issue
-reg  [OST_CNT_W-1:0]     rd_clr_ptr_r;   // Pointer for completion
-reg  [OST_CNT_W-1:0]     rd_req_ptr_r;     // Next available slot for request
+reg  [OST_CNT_W                 -1:0] rd_set_ptr_r; 
+reg  [OST_CNT_W                 -1:0] rd_clr_ptr_r; 
+reg  [OST_CNT_W                 -1:0] rd_req_ptr_r; 
 
 //--------------------------------------------------------------------------------
 // Pointer Management
@@ -109,10 +110,15 @@ end
 // Main Ctrl
 //--------------------------------------------------------------------------------
 assign rd_buff_set = ~rd_buff_full & enable;
-assign rd_buff_clr = rd_valid_buff_r[rd_clr_ptr_r] & ~rd_req_buff_r[rd_clr_ptr_r] & 
-                     ~rd_comp_buff_r[rd_clr_ptr_r] & (|rd_valid_buff_r);
-
-assign rd_buff_full = &rd_valid_buff_r;
+assign rd_buff_clr = rd_valid_buff_r[rd_clr_ptr_r] & ~rd_req_buff_r[rd_clr_ptr_r] & ~rd_comp_buff_r[rd_clr_ptr_r];
+always @(*) begin
+    integer i;
+    rd_valid_bits = {OST_DEPTH{1'b0}};
+    for (i=0; i<OST_DEPTH; i=i+1) begin: CHK_FULL
+        rd_valid_bits[i] = rd_valid_buff_r[i];
+    end
+end
+assign rd_buff_full = &rd_valid_bits;
 
 // Generate outstanding buffers
 genvar i;
@@ -167,16 +173,15 @@ generate
 for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
-            rd_id_buff_r[i]    <= #DLY {`AXI_ID_W{1'b0}};
-            rd_addr_buff_r[i]  <= #DLY {`AXI_ADDR_W{1'b0}};
-            rd_len_buff_r[i]   <= #DLY {`AXI_LEN_W{1'b0}};
-            rd_size_buff_r[i]  <= #DLY `AXI_SIZE_1B;
-            rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
+            rd_id_buff_r    [i] <= #DLY{`AXI_ID_W{1'b0}};
+            rd_addr_buff_r  [i] <= #DLY{`AXI_ADDR_W{1'b0}};
+            rd_len_buff_r   [i] <= #DLY{`AXI_LEN_W{1'b0}};
+            rd_size_buff_r  [i] <= #DLY `AXI_SIZE_1B;
+            rd_burst_buff_r [i] <= #DLY `AXI_BURST_INCR;
         end
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
-            rd_id_buff_r[i]   <= #DLY i;
-            
-            // Burst configuration (same as original)
+            rd_id_buff_r    [i] <= #DLY i;
+            // Burst configuration
             case (i)  // Use lower 3 bits for case selection
                 3'b000: begin  // INCR burst, len=1
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h0;
@@ -243,7 +248,8 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
             rd_resp_buff_r[i] <= #DLY {`AXI_RESP_W{1'b0}};
         end
         else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
-            rd_resp_buff_r[i] <= #DLY (axi_mst_rresp > rd_resp_buff_r[i]) ? axi_mst_rresp : rd_resp_buff_r[i];
+            rd_resp_buff_r[i] <= #DLY (axi_mst_rresp > rd_resp_buff_r[i]) ? axi_mst_rresp 
+                                                                          : rd_resp_buff_r[i];
         end
     end
     assign rd_resp_err[i] = (rd_resp_buff_r[i] == `AXI_RESP_SLVERR) | 
@@ -280,12 +286,12 @@ endgenerate
 //--------------------------------------------------------------------------------
 assign error           = |rd_resp_err;
 
-assign axi_mst_arvalid = |rd_req_buff_r;
-assign axi_mst_arid    = rd_id_buff_r[rd_req_ptr_r];
-assign axi_mst_araddr  = rd_addr_buff_r[rd_req_ptr_r];
-assign axi_mst_arlen   = rd_len_buff_r[rd_req_ptr_r];
-assign axi_mst_arsize  = rd_size_buff_r[rd_req_ptr_r];
-assign axi_mst_arburst = rd_burst_buff_r[rd_req_ptr_r];
+assign axi_mst_arvalid = |rd_valid_bits;
+assign axi_mst_arid    = rd_id_buff_r    [rd_req_ptr_r];
+assign axi_mst_araddr  = rd_addr_buff_r  [rd_req_ptr_r];
+assign axi_mst_arlen   = rd_len_buff_r   [rd_req_ptr_r];
+assign axi_mst_arsize  = rd_size_buff_r  [rd_req_ptr_r];
+assign axi_mst_arburst = rd_burst_buff_r [rd_req_ptr_r];
 
 assign axi_mst_rready  = 1'b1;  // Always ready to accept read data
 
