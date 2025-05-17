@@ -5,13 +5,13 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-05-17 01:18
+// Last Modified : 2025-05-17 07:39
 // ---------------------------------------------------------------------------------
 // Description   : AXI Master with burst support up to length 8 and outstanding capability
 //
 // -FHDR----------------------------------------------------------------------------
 module EASYAXI_MST #(
-    parameter OST_DEPTH = 8  // Outstanding depth, must be power of 2
+    parameter OST_DEPTH = 16  // Outstanding depth, must be power of 2
 )(
 // Global
     input  wire                      clk,
@@ -72,57 +72,61 @@ wire [`AXI_ID_W-1:0]     rd_result_id;
 wire                     rd_result_last;
 
 // Pointer and status signals
-reg  [OST_CNT_W-1:0]     rd_req_ptr_r;    // Pointer for request issue
-reg  [OST_CNT_W-1:0]     rd_comp_ptr_r;   // Pointer for completion
-wire [OST_CNT_W-1:0]     rd_req_slot;     // Next available slot for request
-wire [OST_CNT_W-1:0]     rd_comp_slot;    // Next completion slot
+reg  [OST_CNT_W-1:0]     rd_set_ptr_r;    // Pointer for request issue
+reg  [OST_CNT_W-1:0]     rd_clr_ptr_r;   // Pointer for completion
+reg  [OST_CNT_W-1:0]     rd_req_ptr_r;     // Next available slot for request
 
 //--------------------------------------------------------------------------------
 // Pointer Management
 //--------------------------------------------------------------------------------
-assign rd_req_slot  = rd_req_ptr_r;
-assign rd_comp_slot = rd_comp_ptr_r;
 
+always @(posedge clk or negedge rst_n) begin
+    if (~rst_n) begin
+        rd_set_ptr_r  <= #DLY {OST_CNT_W{1'b0}};
+    end
+    else if (rd_buff_set) begin
+        rd_set_ptr_r  <= #DLY rd_set_ptr_r + 1;
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin
+    if (~rst_n) begin
+        rd_clr_ptr_r <= #DLY {OST_CNT_W{1'b0}};
+    end
+    else if (rd_buff_clr) begin
+        rd_clr_ptr_r <= #DLY rd_clr_ptr_r + 1;
+    end
+end
 always @(posedge clk or negedge rst_n) begin
     if (~rst_n) begin
         rd_req_ptr_r  <= #DLY {OST_CNT_W{1'b0}};
     end
-    else if (rd_buff_set) begin
+    else if (rd_req_en) begin
         rd_req_ptr_r  <= #DLY rd_req_ptr_r + 1;
     end
 end
-
-always @(posedge clk or negedge rst_n) begin
-    if (~rst_n) begin
-        rd_comp_ptr_r <= #DLY {OST_CNT_W{1'b0}};
-    end
-    else if (rd_buff_clr) begin
-        rd_comp_ptr_r <= #DLY rd_comp_ptr_r + 1;
-    end
-end
-
 //--------------------------------------------------------------------------------
 // Main Ctrl
 //--------------------------------------------------------------------------------
 assign rd_buff_set = ~rd_buff_full & enable;
-assign rd_buff_clr = rd_valid_buff_r[rd_comp_slot] & ~rd_req_buff_r[rd_comp_slot] & 
-                     ~rd_comp_buff_r[rd_comp_slot] & (|rd_valid_buff_r);
+assign rd_buff_clr = rd_valid_buff_r[rd_clr_ptr_r] & ~rd_req_buff_r[rd_clr_ptr_r] & 
+                     ~rd_comp_buff_r[rd_clr_ptr_r] & (|rd_valid_buff_r);
 
 assign rd_buff_full = &rd_valid_buff_r;
 
 // Generate outstanding buffers
-generate
 genvar i;
+generate
 for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
     // Valid buffer
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             rd_valid_buff_r[i] <= #DLY 1'b0;
         end
-        else if (rd_buff_set && (rd_req_slot == i)) begin
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_valid_buff_r[i] <= #DLY 1'b1;
         end
-        else if (rd_buff_clr && (rd_comp_slot == i)) begin
+        else if (rd_buff_clr && (rd_clr_ptr_r == i)) begin
             rd_valid_buff_r[i] <= #DLY 1'b0;
         end
     end
@@ -132,10 +136,10 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
         if (~rst_n) begin
             rd_req_buff_r[i] <= #DLY 1'b0;
         end
-        else if (rd_buff_set && (rd_req_slot == i)) begin
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_req_buff_r[i] <= #DLY 1'b1;
         end
-        else if (rd_req_en && (rd_req_slot == i)) begin
+        else if (rd_req_en && (rd_req_ptr_r == i)) begin
             rd_req_buff_r[i] <= #DLY 1'b0;
         end
     end
@@ -145,7 +149,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
         if (~rst_n) begin
             rd_comp_buff_r[i] <= #DLY 1'b0;
         end
-        else if (rd_buff_set && (rd_req_slot == i)) begin
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_comp_buff_r[i] <= #DLY 1'b1;
         end
         else if (rd_result_en && rd_result_last && (rd_result_id == rd_id_buff_r[i])) begin
@@ -169,7 +173,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
             rd_size_buff_r[i]  <= #DLY `AXI_SIZE_1B;
             rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
         end
-        else if (rd_buff_set && (rd_req_slot == i)) begin
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_id_buff_r[i]   <= #DLY i;
             
             // Burst configuration (same as original)
@@ -217,7 +221,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 default: begin  // Default INCR burst
-                    rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h0;
+                    rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h80;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
                     rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
@@ -253,7 +257,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
         else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
             rd_data_cnt_r[i] <= #DLY rd_data_cnt_r[i] + 1;
         end
-        else if (rd_buff_set && (rd_req_slot == i)) begin
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_data_cnt_r[i]  <= #DLY {BURST_CNT_W{1'b0}};
         end
     end
@@ -264,7 +268,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
         else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
             rd_data_buff_r[i][(rd_data_cnt_r[i]*`AXI_DATA_W) +: `AXI_DATA_W] <= #DLY axi_mst_rdata;
         end
-        else if (rd_buff_set && (rd_req_slot == i)) begin
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_data_buff_r[i] <= #DLY {(`AXI_DATA_W*MAX_BURST_LEN){1'b0}};
         end
     end
@@ -277,11 +281,11 @@ endgenerate
 assign error           = |rd_resp_err;
 
 assign axi_mst_arvalid = |rd_req_buff_r;
-assign axi_mst_arid    = rd_id_buff_r[rd_req_slot];
-assign axi_mst_araddr  = rd_addr_buff_r[rd_req_slot];
-assign axi_mst_arlen   = rd_len_buff_r[rd_req_slot];
-assign axi_mst_arsize  = rd_size_buff_r[rd_req_slot];
-assign axi_mst_arburst = rd_burst_buff_r[rd_req_slot];
+assign axi_mst_arid    = rd_id_buff_r[rd_req_ptr_r];
+assign axi_mst_araddr  = rd_addr_buff_r[rd_req_ptr_r];
+assign axi_mst_arlen   = rd_len_buff_r[rd_req_ptr_r];
+assign axi_mst_arsize  = rd_size_buff_r[rd_req_ptr_r];
+assign axi_mst_arburst = rd_burst_buff_r[rd_req_ptr_r];
 
 assign axi_mst_rready  = 1'b1;  // Always ready to accept read data
 
