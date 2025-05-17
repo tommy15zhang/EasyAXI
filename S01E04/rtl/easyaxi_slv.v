@@ -5,7 +5,7 @@
 // Filename      : easyaxi_slv.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:52
-// Last Modified : 2025-04-14 08:18
+// Last Modified : 2025-04-18 07:23
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -69,7 +69,7 @@ reg  [CLR_CNT_W    -1:0] clr_cnt_r;           // Clear counter for data fetch si
 // Burst address calculation
 wire [`AXI_ADDR_W-1:0]   rd_start_addr;       // Start address based on axi_addr
 wire [`AXI_LEN_W -1:0]   rd_burst_lenth;      // Burst_length
-reg  [2**`AXI_SIZE_W-1:0]rd_number_bytes;     // Max Size is 128Byte -> 8'b1000_0000
+wire [2**`AXI_SIZE_W-1:0]rd_number_bytes;     // Max Size is 128Byte -> 8'b1000_0000
 wire [`AXI_ADDR_W-1:0]   rd_wrap_boundary;    // Wrap boundary address
 wire [`AXI_ADDR_W-1:0]   rd_aligned_addr;     // Aligned address 
 wire                     rd_wrap_en;          // Wrap happen
@@ -147,7 +147,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_wrap_en_r <= #DLY 1'b0;  // reset 0 when get new request
     end
     else if (rd_data_get) begin
-        rd_wrap_en_r <= #DLY rd_wrap_en;  // Increment read wrap_en
+        rd_wrap_en_r <= #DLY rd_wrap_en_r | rd_wrap_en;  // Increment read wrap_en
     end
 end
 always @(posedge clk or negedge rst_n) begin
