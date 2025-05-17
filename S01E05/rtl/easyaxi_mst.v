@@ -5,7 +5,7 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-05-16 23:29
+// Last Modified : 2025-05-17 01:18
 // ---------------------------------------------------------------------------------
 // Description   : AXI Master with burst support up to length 8 and outstanding capability
 //
@@ -173,7 +173,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
             rd_id_buff_r[i]   <= #DLY i;
             
             // Burst configuration (same as original)
-            case (rd_id_buff_r[i][2:0])  // Use lower 3 bits for case selection
+            case (i)  // Use lower 3 bits for case selection
                 3'b000: begin  // INCR burst, len=1
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h0;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
