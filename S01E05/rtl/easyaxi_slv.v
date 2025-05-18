@@ -5,13 +5,13 @@
 // Filename      : easyaxi_slv.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:52
-// Last Modified : 2025-05-18 00:51
+// Last Modified : 2025-05-18 06:52
 // ---------------------------------------------------------------------------------
 // Description   : AXI Slave with burst support up to length 8 and outstanding capability
 //
 // -FHDR----------------------------------------------------------------------------
 module EASYAXI_SLV #(
-    parameter OST_DEPTH = 16  // Outstanding depth, must be power of 2
+    parameter OST_DEPTH = 4  // Outstanding depth, must be power of 2
 )(
 // Global
     input  wire                      clk,
@@ -40,7 +40,7 @@ localparam MAX_BURST_LEN = 8;  // Maximum burst length support
 localparam BURST_CNT_W   = $clog2(MAX_BURST_LEN);  // Maximum burst length cnt width
 localparam RD_DATA_CNT_W      = 4;
 localparam REG_ADDR       = 16'h0000;  // Default register address
-localparam OST_CNT_W      = $clog2(OST_DEPTH);  // Outstanding counter width
+localparam OST_CNT_W     = OST_DEPTH == 1 ? 1 : $clog2(OST_DEPTH);      // Outstanding counter width
 
 //--------------------------------------------------------------------------------
 // Inner Signal 
@@ -103,7 +103,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_set_ptr_r  <= #DLY {OST_CNT_W{1'b0}};
     end
     else if (rd_buff_set) begin
-        rd_set_ptr_r  <= #DLY rd_set_ptr_r + 1;
+        rd_set_ptr_r  <= #DLY ((rd_set_ptr_r + 1) < OST_DEPTH) ? rd_set_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
 
@@ -112,7 +112,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_clr_ptr_r <= #DLY {OST_CNT_W{1'b0}};
     end
     else if (rd_buff_clr) begin
-        rd_clr_ptr_r <= #DLY rd_clr_ptr_r + 1;
+        rd_clr_ptr_r <= #DLY ((rd_clr_ptr_r + 1) < OST_DEPTH) ? rd_clr_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
 always @(posedge clk or negedge rst_n) begin
@@ -120,7 +120,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_result_ptr_r <= #DLY {OST_CNT_W{1'b0}};
     end
     else if (rd_result_en & rd_result_last) begin
-        rd_result_ptr_r <= #DLY rd_result_ptr_r + 1;
+        rd_result_ptr_r <= #DLY ((rd_result_ptr_r + 1) < OST_DEPTH) ? rd_result_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
 
@@ -175,7 +175,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
             else if (rd_data_get[i] && (rd_curr_index_r[i] == rd_burst_lenth[i])) begin
                 rd_result_buff_r[i] <= #DLY 1'b1;
             end
-        else if (rd_result_en && (rd_result_id == rd_id_buff_r[i]) && (rd_data_cnt_r[i] == rd_len_buff_r[i])) begin
+        else if (rd_result_en && (rd_result_ptr_r == i) && (rd_data_cnt_r[i] == rd_len_buff_r[i])) begin
                 rd_result_buff_r[i] <= #DLY 1'b0;
             end
         end
@@ -189,7 +189,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_comp_buff_r[i] <= #DLY 1'b1;
         end
-        else if (rd_result_en && rd_result_last && (rd_result_id == rd_id_buff_r[i])) begin
+        else if (rd_result_en && rd_result_last && (rd_result_ptr_r == i)) begin
             rd_comp_buff_r[i] <= #DLY 1'b0;
         end
     end
@@ -310,7 +310,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_data_cnt_r[i]  <= #DLY {BURST_CNT_W{1'b0}};
         end
-        else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
+        else if (rd_result_en && (rd_result_ptr_r == i)) begin
             rd_data_cnt_r[i] <= #DLY rd_data_cnt_r[i] + 1;
         end
     end

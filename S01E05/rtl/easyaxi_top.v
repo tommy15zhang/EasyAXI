@@ -5,7 +5,7 @@
 // Filename      : easyaxi.v
 // Author        : Rongye
 // Created On    : 2025-02-05 05:04
-// Last Modified : 2025-05-16 21:56
+// Last Modified : 2025-05-18 05:53
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -15,7 +15,7 @@ module EASYAXI_TOP (
     input wire clk,
     input wire rst_n,
     input wire enable, 
-    input wire error 
+    input wire done 
 );
 //--------------------------------------------------------------------------------
 // Inst Master
@@ -38,7 +38,7 @@ EASYAXI_MST U_EASYAXI_MST (
     .clk             (clk             ), // i
     .rst_n           (rst_n           ), // i
     .enable          (enable          ), // i
-    .error           (error           ), // o
+    .done            (done            ), // o
 
     .axi_mst_arvalid (axi_mst_arvalid ), // o
     .axi_mst_arready (axi_mst_arready ), // i

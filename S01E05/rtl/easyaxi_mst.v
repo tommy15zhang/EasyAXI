@@ -5,19 +5,19 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-05-18 00:09
+// Last Modified : 2025-05-18 06:54
 // ---------------------------------------------------------------------------------
 // Description   : AXI Master with burst support up to length 8 and outstanding capability
 //
 // -FHDR----------------------------------------------------------------------------
 module EASYAXI_MST #(
-    parameter OST_DEPTH = 16  // Outstanding depth, must be power of 2
+    parameter OST_DEPTH = 4  // Outstanding depth, must be power of 2
 )(
 // Global
     input  wire                      clk,
     input  wire                      rst_n, 
     input  wire                      enable,
-    output wire                      error,
+    output wire                      done,
 
 // AXI AR Channel
     output wire                      axi_mst_arvalid,
@@ -39,7 +39,9 @@ module EASYAXI_MST #(
 localparam DLY = 0.1;
 localparam MAX_BURST_LEN = 8;  // Maximum burst length support
 localparam BURST_CNT_W   = $clog2(MAX_BURST_LEN);  // Maximum burst length cnt width
-localparam OST_CNT_W     = $clog2(OST_DEPTH);      // Outstanding counter width
+localparam OST_CNT_W     = OST_DEPTH == 1 ? 1 : $clog2(OST_DEPTH);      // Outstanding counter width
+localparam MAX_REQ_NUM   = 32;  // Maximum burst length support
+localparam REQ_CNT_W     = $clog2(MAX_REQ_NUM);  // Maximum burst length cnt width
 
 //--------------------------------------------------------------------------------
 // Inner Signal
@@ -54,6 +56,7 @@ reg                                   rd_req_buff_r  [OST_DEPTH-1:0];
 reg                                   rd_comp_buff_r [OST_DEPTH-1:0];
 
 reg  [OST_DEPTH-1:0]                  rd_valid_bits;        
+reg  [OST_DEPTH-1:0]                  rd_req_bits;        
 // Outstanding payload buffers
 reg  [`AXI_ID_W                 -1:0] rd_id_buff_r   [OST_DEPTH-1:0];
 reg  [`AXI_ADDR_W               -1:0] rd_addr_buff_r [OST_DEPTH-1:0];
@@ -71,6 +74,7 @@ wire                                  rd_req_en;
 wire                                  rd_result_en;
 wire [`AXI_ID_W                 -1:0] rd_result_id;
 wire                                  rd_result_last;
+reg  [REQ_CNT_W                 -1:0] rd_req_cnt_r; 
 
 // Pointer and status signals
 reg  [OST_CNT_W                 -1:0] rd_set_ptr_r; 
@@ -86,7 +90,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_set_ptr_r  <= #DLY {OST_CNT_W{1'b0}};
     end
     else if (rd_buff_set) begin
-        rd_set_ptr_r  <= #DLY rd_set_ptr_r + 1;
+        rd_set_ptr_r  <= #DLY ((rd_set_ptr_r + 1) < OST_DEPTH) ? rd_set_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
 
@@ -95,7 +99,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_clr_ptr_r <= #DLY {OST_CNT_W{1'b0}};
     end
     else if (rd_buff_clr) begin
-        rd_clr_ptr_r <= #DLY rd_clr_ptr_r + 1;
+        rd_clr_ptr_r <= #DLY ((rd_clr_ptr_r + 1) < OST_DEPTH) ? rd_clr_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
 always @(posedge clk or negedge rst_n) begin
@@ -103,7 +107,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_req_ptr_r  <= #DLY {OST_CNT_W{1'b0}};
     end
     else if (rd_req_en) begin
-        rd_req_ptr_r  <= #DLY rd_req_ptr_r + 1;
+        rd_req_ptr_r  <= #DLY ((rd_req_ptr_r + 1) < OST_DEPTH) ? rd_req_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
 //--------------------------------------------------------------------------------
@@ -186,7 +190,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
                 3'b000: begin  // INCR burst, len=1
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h0;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h0;  // 1 transfer
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;  // 1 transfer
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 3'b001: begin  // INCR burst, len=4
@@ -198,13 +202,13 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
                 3'b010: begin  // INCR burst, len=8
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h20;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h7;  // 8 transfers
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;  // 8 transfers
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 3'b011: begin  // FIXED burst, len=4
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h30;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_FIXED;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h7;
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 3'b100: begin  // WRAP burst, len=4
@@ -222,7 +226,13 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
                 3'b110: begin  // FIXED burst, len=8
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h40;  // Must be aligned to 32B for 8x4B
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_FIXED;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h7;
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;
+                    rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
+                end
+                3'b111: begin  // INCR burst, len=1
+                    rd_addr_buff_r [i] <= #DLY rd_addr_buff_r [i] + `AXI_ADDR_W'h20;
+                    rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;  // 1 transfer
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 default: begin  // Default INCR burst
@@ -280,13 +290,30 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
     end
 end
 endgenerate
-
+//--------------------------------------------------------------------------------
+// REQ SEND COUNTER
+//--------------------------------------------------------------------------------
+always @(posedge clk or negedge rst_n) begin
+    if (~rst_n) begin
+        rd_req_cnt_r  <= #DLY {REQ_CNT_W{1'b0}};
+    end
+    else if (rd_result_en & rd_result_last) begin
+        rd_req_cnt_r <= #DLY rd_req_cnt_r + 1;
+    end
+end
 //--------------------------------------------------------------------------------
 // Output Signal
 //--------------------------------------------------------------------------------
-assign error           = |rd_resp_err;
+assign done = /* (|rd_resp_err) |  */(rd_req_cnt_r == {REQ_CNT_W{1'b1}});
 
-assign axi_mst_arvalid = |rd_valid_bits;
+always @(*) begin
+    integer i;
+    rd_req_bits = {OST_DEPTH{1'b0}};
+    for (i=0; i<OST_DEPTH; i=i+1) begin: CHK_FULL
+        rd_req_bits[i] = rd_req_buff_r[i];
+    end
+end
+assign axi_mst_arvalid = |rd_req_bits;
 assign axi_mst_arid    = rd_id_buff_r    [rd_req_ptr_r];
 assign axi_mst_araddr  = rd_addr_buff_r  [rd_req_ptr_r];
 assign axi_mst_arlen   = rd_len_buff_r   [rd_req_ptr_r];

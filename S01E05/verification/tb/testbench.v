@@ -5,7 +5,7 @@
 // Filename      : tb_rvseed.v
 // Author        : Rongye
 // Created On    : 2022-03-25 04:18
-// Last Modified : 2025-05-16 21:57
+// Last Modified : 2025-05-18 05:52
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -18,7 +18,7 @@ module TESTBENCH ();
 reg                  clk;
 reg                  rst_n;
 reg                  enable;
-wire                 error;
+wire                 done;
 
 
 localparam SIM_PERIOD = 20; // 20ns -> 50MHz
@@ -51,7 +51,7 @@ task reset;                // reset 1 clock
 endtask
 
 always begin
-   wait (error == 1) begin
+   wait (done == 1) begin
        enable = 0; 
        #(SIM_PERIOD * 20 + 1);
        $finish;
@@ -61,7 +61,7 @@ EASYAXI_TOP U_EASYAXI_TOP (
     .clk                            ( clk                           ),
     .rst_n                          ( rst_n                         ),
     .enable                         ( enable                        ),
-    .error                          ( error                         )
+    .done                           ( done                          )
 );
 
 // vcs 
