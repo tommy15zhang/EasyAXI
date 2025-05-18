@@ -5,7 +5,7 @@
 // Filename      : easyaxi_slv.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:52
-// Last Modified : 2025-05-18 06:52
+// Last Modified : 2025-05-18 09:09
 // ---------------------------------------------------------------------------------
 // Description   : AXI Slave with burst support up to length 8 and outstanding capability
 //
@@ -345,11 +345,5 @@ assign axi_slv_rid     = rd_id_buff_r    [rd_result_ptr_r];
 assign axi_slv_rdata   = rd_data_buff_r[rd_result_ptr_r][((rd_data_cnt_r[rd_result_ptr_r])*`AXI_DATA_W) +: `AXI_DATA_W];
 assign axi_slv_rresp   = rd_resp_buff_r  [rd_result_ptr_r];
 assign axi_slv_rlast   = axi_slv_rvalid & (rd_data_cnt_r[rd_result_ptr_r] == rd_len_buff_r[rd_result_ptr_r]);
-
-
-
-//--------------------------------------------------------------------------------
-// Function 
-//--------------------------------------------------------------------------------
 
 endmodule
