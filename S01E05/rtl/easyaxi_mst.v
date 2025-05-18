@@ -5,7 +5,7 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-05-17 08:47
+// Last Modified : 2025-05-18 00:09
 // ---------------------------------------------------------------------------------
 // Description   : AXI Master with burst support up to length 8 and outstanding capability
 //
@@ -260,22 +260,22 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
         if (~rst_n) begin
             rd_data_cnt_r[i]  <= #DLY {BURST_CNT_W{1'b0}};
         end
-        else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
-            rd_data_cnt_r[i] <= #DLY rd_data_cnt_r[i] + 1;
-        end
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_data_cnt_r[i]  <= #DLY {BURST_CNT_W{1'b0}};
+        end
+        else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
+            rd_data_cnt_r[i] <= #DLY rd_data_cnt_r[i] + 1;
         end
     end
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             rd_data_buff_r[i] <= #DLY {(`AXI_DATA_W*MAX_BURST_LEN){1'b0}};
         end
-        else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
-            rd_data_buff_r[i][(rd_data_cnt_r[i]*`AXI_DATA_W) +: `AXI_DATA_W] <= #DLY axi_mst_rdata;
-        end
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_data_buff_r[i] <= #DLY {(`AXI_DATA_W*MAX_BURST_LEN){1'b0}};
+        end
+        else if (rd_result_en && (rd_result_id == rd_id_buff_r[i])) begin
+            rd_data_buff_r[i][(rd_data_cnt_r[i]*`AXI_DATA_W) +: `AXI_DATA_W] <= #DLY axi_mst_rdata;
         end
     end
 end
