@@ -1,4 +1,4 @@
-# S01E05: AXI outstanding实现
+# S01E05: AXI outstanding实现 
 1. 读事务为例，说明AXI OST特性的实现；
 2. 不支持Out-of-order、Interleave；
 3. 支持OST可配为1、2、4、8、16、32；
