@@ -5,7 +5,7 @@
 // Filename      : easyaxi_slv.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:52
-// Last Modified : 2025-05-18 09:09
+// Last Modified : 2025-05-19 08:46
 // ---------------------------------------------------------------------------------
 // Description   : AXI Slave with burst support up to length 8 and outstanding capability
 //
@@ -27,6 +27,7 @@ module EASYAXI_SLV #(
     input  wire  [`AXI_SIZE_W  -1:0] axi_slv_arsize,
     input  wire  [`AXI_BURST_W -1:0] axi_slv_arburst,
 
+// AXI R Channel
     output wire                      axi_slv_rvalid,
     input  wire                      axi_slv_rready,
     output wire  [`AXI_ID_W    -1:0] axi_slv_rid,
@@ -35,11 +36,10 @@ module EASYAXI_SLV #(
     output wire                      axi_slv_rlast
 );
 
-localparam DLY            = 0.1;
+localparam DLY           = 0.1;
 localparam MAX_BURST_LEN = 8;  // Maximum burst length support
 localparam BURST_CNT_W   = $clog2(MAX_BURST_LEN);  // Maximum burst length cnt width
-localparam RD_DATA_CNT_W      = 4;
-localparam REG_ADDR       = 16'h0000;  // Default register address
+localparam REG_ADDR      = 16'h0000;  // Default register address
 localparam OST_CNT_W     = OST_DEPTH == 1 ? 1 : $clog2(OST_DEPTH);      // Outstanding counter width
 
 //--------------------------------------------------------------------------------
@@ -49,29 +49,32 @@ wire                     rd_buff_set;
 wire                     rd_buff_clr;         
 wire                     rd_buff_full;         
 
-// Outstanding request tracking
+// Outstanding request status buffers
 reg                      rd_valid_buff_r [OST_DEPTH-1:0];
 reg                      rd_result_buff_r[OST_DEPTH-1:0];
 reg                      rd_comp_buff_r  [OST_DEPTH-1:0];
 
-reg  [OST_DEPTH-1:0]     rd_valid_bits;        
+// Bit-vector representations for status flags
+reg  [OST_DEPTH    -1:0] rd_valid_bits;
 
-reg  [OST_CNT_W-1:0]     rd_set_ptr_r;        
-reg  [OST_CNT_W-1:0]     rd_clr_ptr_r;        
-reg  [OST_CNT_W-1:0]     rd_result_ptr_r;      
+// Buffer management pointers
+reg  [OST_CNT_W    -1:0] rd_set_ptr_r;
+reg  [OST_CNT_W    -1:0] rd_clr_ptr_r;
+reg  [OST_CNT_W    -1:0] rd_result_ptr_r;
 
-reg  [`AXI_LEN_W   -1:0] rd_curr_index_r [OST_DEPTH-1:0];     // Current read index
-reg  [`AXI_ID_W    -1:0] rd_id_buff_r    [OST_DEPTH-1:0];     // AXI ID buffer
-reg  [`AXI_ADDR_W  -1:0] rd_addr_buff_r  [OST_DEPTH-1:0];     // AXI Address buffer
-reg  [`AXI_LEN_W   -1:0] rd_len_buff_r   [OST_DEPTH-1:0];     // AXI Length buffer
-reg  [`AXI_SIZE_W  -1:0] rd_size_buff_r  [OST_DEPTH-1:0];     // AXI Size buffer
-reg  [`AXI_BURST_W -1:0] rd_burst_buff_r [OST_DEPTH-1:0];     // AXI Burst type buffer
+// Outstanding transaction payload buffers
+reg  [`AXI_LEN_W   -1:0] rd_curr_index_r [OST_DEPTH-1:0];
+reg  [`AXI_ID_W    -1:0] rd_id_buff_r    [OST_DEPTH-1:0];
+reg  [`AXI_ADDR_W  -1:0] rd_addr_buff_r  [OST_DEPTH-1:0];
+reg  [`AXI_LEN_W   -1:0] rd_len_buff_r   [OST_DEPTH-1:0];
+reg  [`AXI_SIZE_W  -1:0] rd_size_buff_r  [OST_DEPTH-1:0];
+reg  [`AXI_BURST_W -1:0] rd_burst_buff_r [OST_DEPTH-1:0];
 
-// Data buffer now supports up to 8 beats per outstanding request
+// Read data buffers (supports MAX_BURST_LEN beats per OST entry)    
 reg  [`AXI_DATA_W*MAX_BURST_LEN -1:0] rd_data_buff_r [OST_DEPTH-1:0];
-reg  [BURST_CNT_W               -1:0] rd_data_cnt_r  [OST_DEPTH-1:0];  // Counter for burst data
+reg  [BURST_CNT_W               -1:0] rd_data_cnt_r  [OST_DEPTH-1:0]; // Counter for burst data
 reg  [`AXI_RESP_W               -1:0] rd_resp_buff_r [OST_DEPTH-1:0];
-wire [OST_DEPTH                 -1:0] rd_resp_err;
+wire [OST_DEPTH                 -1:0] rd_resp_err;                    // Error flags
 
 
 reg  [`AXI_ADDR_W  -1:0] rd_curr_addr_r  [OST_DEPTH-1:0];     // Current address
@@ -115,6 +118,7 @@ always @(posedge clk or negedge rst_n) begin
         rd_clr_ptr_r <= #DLY ((rd_clr_ptr_r + 1) < OST_DEPTH) ? rd_clr_ptr_r + 1 : {OST_CNT_W{1'b0}};
     end
 end
+
 always @(posedge clk or negedge rst_n) begin
     if (~rst_n) begin
         rd_result_ptr_r <= #DLY {OST_CNT_W{1'b0}};
@@ -164,6 +168,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
         end
     end
 
+    // Result sent flag buffer
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             rd_result_buff_r[i] <= #DLY 1'b0;
@@ -181,7 +186,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
         end
     end
 
-    // Completion buffer
+    // Completion flag buffer
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             rd_comp_buff_r[i] <= #DLY 1'b0;
@@ -301,7 +306,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
             rd_resp_buff_r[i] <= #DLY rd_data_err[i] ? `AXI_RESP_SLVERR : `AXI_RESP_OKAY;
         end
     end
-    // Data buffer
+    // Burst data beat counter
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             rd_data_cnt_r[i]  <= #DLY {BURST_CNT_W{1'b0}};
@@ -314,6 +319,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
             rd_data_cnt_r[i] <= #DLY rd_data_cnt_r[i] + 1;
         end
     end
+    // Burst data buffer
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             rd_data_buff_r[i] <= #DLY {(`AXI_DATA_W*MAX_BURST_LEN){1'b0}};
