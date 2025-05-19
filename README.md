@@ -11,6 +11,8 @@ AXI接口数据交互使用的是valid&ready握手机制，理解握手是使用
 ## S01E04: AXI读Burst实现
 以读通道为例，说明AXI Burst特性的实现，包括FIXED、INCR、WRAP类型。 - [跳转到 S01E04](./S01E04/README.md)
 
+## S01E05: AXI outstanding实现
+以读通道为例，说明AXI OST特性的实现，支持多种OST深度可配。 - [跳转到 S01E05](./S01E05/README.md)
 
 ## 注：
 1. 通过`git clone https://github.com/RongyeL/EasyAXI.git --depth 1`获取本系列视频的项目文件;
@@ -31,3 +33,6 @@ Taking the read channel as an example, show a complete AXI read operation proces
 
 ## S01E04: AXI read Burst implementation
 Taking the read channel as an example, explain the implementation of the AXI Burst feature, including FIXED, INCR, and WRAP types. - [Jump to S01E04](./S01E04/README.md)ment needs to be installed by yourself, and this tutorial video will not explain or provide it.
+
+## S01E05: AXI outstanding implementation
+Take the read channel as an example to explain the implementation of the AXI OST feature, supporting multiple OST depth configurations. - [Jump to S01E05](./S01E05/README.md)
