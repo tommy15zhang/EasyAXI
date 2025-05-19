@@ -27,7 +27,7 @@ sim:
 #	dve -vpd vcdplus.vpd -script dve.tcl 
 #---------------------------------------------------------------
 verdi:
-	verdi -f ../tb/tb.f  
+	verdi -f ../tb/tb.f -ssf sim_out.fsdb -sswr signal.rc &
 #---------------------------------------------------------------
 clean:
 	rm -rf csrc DVEfiles novas* *.log simv* *fsdb* ucli.key *.vpd verdiLog
