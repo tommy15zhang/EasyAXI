@@ -5,7 +5,7 @@
 // Filename      : tb_rvseed.v
 // Author        : Rongye
 // Created On    : 2022-03-25 04:18
-// Last Modified : 2025-05-18 05:52
+// Last Modified : 2025-05-24 01:21
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -32,7 +32,7 @@ initial begin
 end
 
 initial begin
-    #(SIM_PERIOD * 1000);
+    #(SIM_PERIOD * 10000);
     $display("Time Out");
     $finish;
 end

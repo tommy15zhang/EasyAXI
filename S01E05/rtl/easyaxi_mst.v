@@ -5,13 +5,13 @@
 // Filename      : easyaxi_mst.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:45
-// Last Modified : 2025-05-23 23:07
+// Last Modified : 2025-05-24 04:49
 // ---------------------------------------------------------------------------------
 // Description   : AXI Master with burst support up to length 8 and outstanding capability
 //
 // -FHDR----------------------------------------------------------------------------
 module EASYAXI_MST #(
-    parameter OST_DEPTH = 4  // Outstanding transaction depth (power of 2)
+    parameter OST_DEPTH = 32  // Outstanding transaction depth (power of 2)
 )(
 // Global
     input  wire                      clk,
@@ -122,10 +122,10 @@ end
 assign rd_buff_set = ~rd_buff_full & enable;
 assign rd_buff_clr = rd_valid_buff_r[rd_clr_ptr_r] & ~rd_req_buff_r[rd_clr_ptr_r] & ~rd_comp_buff_r[rd_clr_ptr_r];
 
-always @(*) begin
+always @(*) begin : GEN_VLD_VEC
     integer i;
     rd_valid_bits = {OST_DEPTH{1'b0}};
-    for (i=0; i<OST_DEPTH; i=i+1) begin: GEN_VLD_VEC
+    for (i=0; i<OST_DEPTH; i=i+1) begin
         rd_valid_bits[i] = rd_valid_buff_r[i];
     end
 end
@@ -196,7 +196,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_id_buff_r    [i] <= #DLY i;
             // Burst configuration
-            case (i)  // Use i for case selection
+            case (i[1:0])  // Use i for case selection
                 3'b000: begin  // INCR burst, len=4
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h0;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_INCR;
@@ -218,7 +218,7 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
                 3'b011: begin  // FIXED burst, len=8
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h30;
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_FIXED;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h7;
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 3'b100: begin  // WRAP burst, len=4
@@ -230,13 +230,13 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: AR_PAYLOAD
                 3'b101: begin  // WRAP burst, len=8
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h38;  // Must be aligned to 32B for 8x4B
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_WRAP;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h7;
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 3'b110: begin  // FIXED burst, len=8
                     rd_addr_buff_r [i] <= #DLY `AXI_ADDR_W'h40;  // Must be aligned to 32B for 8x4B
                     rd_burst_buff_r[i] <= #DLY `AXI_BURST_FIXED;
-                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h7;
+                    rd_len_buff_r  [i] <= #DLY `AXI_LEN_W'h3;
                     rd_size_buff_r [i] <= #DLY `AXI_SIZE_4B;
                 end
                 3'b111: begin  // INCR burst, len=4
@@ -319,10 +319,10 @@ end
 //--------------------------------------------------------------------------------
 assign done = (rd_req_cnt_r == {REQ_CNT_W{1'b1}});  // All requests completed
 
-always @(*) begin
+always @(*) begin : GEN_REQ_VEC
     integer i;
     rd_req_bits = {OST_DEPTH{1'b0}};
-    for (i=0; i<OST_DEPTH; i=i+1) begin: GEN_REQ_VEC
+    for (i=0; i<OST_DEPTH; i=i+1) begin
         rd_req_bits[i] = rd_req_buff_r[i];
     end
 end

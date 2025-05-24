@@ -5,13 +5,13 @@
 // Filename      : easyaxi_slv.v
 // Author        : Rongye
 // Created On    : 2025-02-06 06:52
-// Last Modified : 2025-05-23 23:07
+// Last Modified : 2025-05-24 04:49
 // ---------------------------------------------------------------------------------
 // Description   : AXI Slave with burst support up to length 8 and outstanding capability
 //
 // -FHDR----------------------------------------------------------------------------
 module EASYAXI_SLV #(
-    parameter OST_DEPTH = 1  // Outstanding depth, must be power of 2
+    parameter OST_DEPTH = 32  // Outstanding depth, must be power of 2
 )(
 // Global
     input  wire                      clk,
@@ -71,7 +71,8 @@ reg  [`AXI_SIZE_W  -1:0] rd_size_buff_r  [OST_DEPTH-1:0];
 reg  [`AXI_BURST_W -1:0] rd_burst_buff_r [OST_DEPTH-1:0];
 
 // Read data buffers (supports MAX_BURST_LEN beats per OST entry)    
-reg  [`AXI_DATA_W*MAX_BURST_LEN -1:0] rd_data_buff_r [OST_DEPTH-1:0];
+reg  [MAX_BURST_LEN             -1:0] rd_data_vld_r  [OST_DEPTH-1:0];
+reg  [MAX_BURST_LEN*`AXI_DATA_W -1:0] rd_data_buff_r [OST_DEPTH-1:0];
 reg  [BURST_CNT_W               -1:0] rd_data_cnt_r  [OST_DEPTH-1:0]; // Counter for burst data
 reg  [`AXI_RESP_W               -1:0] rd_resp_buff_r [OST_DEPTH-1:0];
 wire [OST_DEPTH                 -1:0] rd_resp_err;                    // Error flags
@@ -85,9 +86,10 @@ wire                     rd_result_en;
 wire [`AXI_ID_W    -1:0] rd_result_id;        
 wire                     rd_result_last;      
 
-wire                     rd_data_cnt_en  [OST_DEPTH-1:0];         
-wire                     rd_data_get     [OST_DEPTH-1:0];         
-wire                     rd_data_err     [OST_DEPTH-1:0];         
+reg  [`AXI_DATA_GET_CNT_W-1:0] rd_data_get_cnt   [OST_DEPTH-1:0];
+wire                           rd_data_get_cnt_en[OST_DEPTH-1:0];         
+wire                           rd_data_get       [OST_DEPTH-1:0];         
+wire                           rd_data_err       [OST_DEPTH-1:0];         
 
 // Burst address calculation
 wire [`AXI_ADDR_W    -1:0] rd_start_addr    [OST_DEPTH-1:0]; // Start address based on axi_addr
@@ -134,10 +136,10 @@ end
 assign rd_buff_set = axi_slv_arvalid & axi_slv_arready;
 assign rd_buff_clr = rd_valid_buff_r[rd_clr_ptr_r] & ~rd_result_buff_r[rd_clr_ptr_r] & ~rd_comp_buff_r[rd_clr_ptr_r];
 
-always @(*) begin
+always @(*) begin : GEN_VLD_VEC
     integer i;
     rd_valid_bits = {OST_DEPTH{1'b0}};
-    for (i=0; i<OST_DEPTH; i=i+1) begin: CHK_FULL
+    for (i=0; i<OST_DEPTH; i=i+1) begin
         rd_valid_bits[i] = rd_valid_buff_r[i];
     end
 end
@@ -177,10 +179,13 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: OST_BUFFERS
             if (rd_buff_set && (rd_set_ptr_r == i)) begin
                 rd_result_buff_r[i] <= #DLY rd_dec_miss ? 1'b1 : 1'b0;
             end
-            else if (rd_data_get[i] && (rd_curr_index_r[i] == rd_burst_lenth[i])) begin
+            else if (rd_result_en && ~rd_result_last && (rd_result_ptr_r == i) && (rd_data_vld_r[i][(rd_data_cnt_r[i]+1)])) begin
+                rd_result_buff_r[i] <= #DLY 1'b1;
+            end 
+            else if (rd_data_get[i]) begin
                 rd_result_buff_r[i] <= #DLY 1'b1;
             end
-        else if (rd_result_en && (rd_result_ptr_r == i) && (rd_data_cnt_r[i] == rd_len_buff_r[i])) begin
+            else if (rd_result_en && (rd_result_ptr_r == i)) begin
                 rd_result_buff_r[i] <= #DLY 1'b0;
             end
         end
@@ -244,6 +249,9 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: BURST_CTRL
         end
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
             rd_curr_index_r[i] <= #DLY rd_dec_miss ? rd_burst_lenth[i] : `AXI_LEN_W'h1;
+        end
+        else if (rd_result_en && rd_result_last && (rd_result_ptr_r == i)) begin
+            rd_curr_index_r[i] <= #DLY {`AXI_LEN_W{1'b0}};
         end
         else if (rd_data_get[i]) begin
             rd_curr_index_r[i] <= #DLY rd_curr_index_r[i] + `AXI_LEN_W'h1;
@@ -322,12 +330,15 @@ for (i=0; i<OST_DEPTH; i=i+1) begin: R_PAYLOAD
     // Burst data buffer
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
+            rd_data_vld_r [i] <= #DLY {MAX_BURST_LEN{1'b0}};
             rd_data_buff_r[i] <= #DLY {(`AXI_DATA_W*MAX_BURST_LEN){1'b0}};
         end
         else if (rd_buff_set && (rd_set_ptr_r == i)) begin
+            rd_data_vld_r [i] <= #DLY {MAX_BURST_LEN{1'b0}};
             rd_data_buff_r[i] <= #DLY {(`AXI_DATA_W*MAX_BURST_LEN){1'b0}};
         end
         else if (rd_data_get[i]) begin
+            rd_data_vld_r [i][(rd_curr_index_r[i]-1)] <= #DLY 1'b1;
             rd_data_buff_r[i][((rd_curr_index_r[i]-1)*`AXI_DATA_W) +: `AXI_DATA_W] <= #DLY {{`AXI_DATA_W-`AXI_ID_W-`AXI_ADDR_W{1'b0}},rd_id_buff_r[i],rd_curr_addr_r[i]};
         end
     end
@@ -339,7 +350,24 @@ endgenerate
 //--------------------------------------------------------------------------------
 generate 
 for (i=0; i<OST_DEPTH; i=i+1) begin: RD_DATA_PROC_SIM
-    assign rd_data_get   [i] = rd_valid_buff_r[i] & (rd_curr_index_r[i] <= rd_burst_lenth[i]);
+    always @(posedge clk or negedge rst_n) begin
+        if (~rst_n) begin
+            rd_data_get_cnt[i] <= #DLY `AXI_DATA_GET_CNT_W'h0;
+        end
+        else if (rd_buff_set && (rd_set_ptr_r == i)) begin
+            rd_data_get_cnt[i] <= #DLY `AXI_DATA_GET_CNT_W'h1;
+        end
+        else if (rd_data_get[i] && (rd_curr_index_r[i] < rd_burst_lenth[i])) begin
+            rd_data_get_cnt[i] <= #DLY `AXI_DATA_GET_CNT_W'h1;
+        end
+        else if (rd_data_get_cnt[i]==`AXI_DATA_GET_CNT_W'h12) begin // rd data delay is 18 cycle
+            rd_data_get_cnt[i] <= #DLY `AXI_DATA_GET_CNT_W'h0;
+        end
+        else if (rd_data_get_cnt[i]>`AXI_DATA_GET_CNT_W'h0) begin
+            rd_data_get_cnt[i] <= #DLY rd_data_get_cnt[i] + `AXI_DATA_GET_CNT_W'h1;
+        end
+    end
+    assign rd_data_get   [i] = rd_valid_buff_r[i] & (rd_data_get_cnt[i]==`AXI_DATA_GET_CNT_W'h12);
     assign rd_data_err   [i] = (rd_id_buff_r[i] == `AXI_ID_W'hF) & (rd_curr_index_r[i] == rd_burst_lenth[i]);
 end
 endgenerate
@@ -348,7 +376,7 @@ endgenerate
 //--------------------------------------------------------------------------------
 assign axi_slv_rvalid  = rd_valid_buff_r [rd_result_ptr_r] & rd_result_buff_r[rd_result_ptr_r];
 assign axi_slv_rid     = rd_id_buff_r    [rd_result_ptr_r];
-assign axi_slv_rdata   = rd_data_buff_r[rd_result_ptr_r][((rd_data_cnt_r[rd_result_ptr_r])*`AXI_DATA_W) +: `AXI_DATA_W];
+assign axi_slv_rdata   = rd_data_buff_r  [rd_result_ptr_r][((rd_data_cnt_r[rd_result_ptr_r])*`AXI_DATA_W) +: `AXI_DATA_W];
 assign axi_slv_rresp   = rd_resp_buff_r  [rd_result_ptr_r];
 assign axi_slv_rlast   = axi_slv_rvalid & (rd_data_cnt_r[rd_result_ptr_r] == rd_len_buff_r[rd_result_ptr_r]);
 

@@ -2,10 +2,10 @@
 //                 Copyright (c) 2022 
 //                       ALL RIGHTS RESERVED
 // ---------------------------------------------------------------------------------
-// Filename      : easy_axi_para.v
+// Filename      : easyaxi_define.v
 // Author        : Rongye
 // Created On    : 2022-12-27 21:06
-// Last Modified : 2025-05-16 22:53
+// Last Modified : 2025-05-24 01:16
 // ---------------------------------------------------------------------------------
 // Description   : 
 //
@@ -44,3 +44,4 @@
 `define AXI_RESP_SLVERR    2'b10
 `define AXI_RESP_DECERR    2'b11
 
+`define AXI_DATA_GET_CNT_W 5
