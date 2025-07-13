@@ -56,8 +56,10 @@ EASYAXI_TOP U_EASYAXI_TOP (
 
 // vcs 
 initial begin
-    $fsdbDumpfile("sim_out.fsdb");
-    $fsdbDumpvars("+all");
+    // $fsdbDumpfile("sim_out.fsdb");
+    // $fsdbDumpvars("+all");
+    $dumpfile("dump.fst");      // 任意名字，后缀可写为 .fst/.vcd
+    $dumpvars(0, TESTBENCH);    // 从顶层 dump 所有信号
 end
 
 endmodule
